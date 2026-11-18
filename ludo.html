@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+
+    <title>JiuTianJiuDi</title>
+
+    <meta name="viewport" content="width=device-width,user-scalable=no,initial-scale=1, minimum-scale=1,maximum-scale=1" />
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="format-detection" content="telephone=no">
+
+    <!-- force webkit on 360 -->
+    <meta name="renderer" content="webkit" />
+    <meta name="force-rendering" content="webkit" />
+
+    <!-- force edge on IE -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta name="msapplication-tap-highlight" content="no">
+
+    <!-- force full screen on some browser -->
+    <meta name="full-screen" content="yes" />
+    <meta name="x5-fullscreen" content="true" />
+    <meta name="360-fullscreen" content="true" />
+
+    <!-- force screen orientation on some browser -->
+    <meta name="screen-orientation" content="landscape" />
+    <meta name="x5-orientation" content="landscape">
+
+    <meta name="x5-page-mode" content="app">
+
+    <link rel="stylesheet" type="text/css" href="style-mobile.css" />
+    <style type="text/css">
+        #banner-container {
+            z-index: 100;
+            position: absolute;
+            bottom: 0;
+            height: 0 !important;
+            display: none;
+        }
+    </style>
+
+</head>
+
+<body>
+    <canvas id="GameCanvas" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
+    <script src="src/settings.js" charset="utf-8"></script>
+    <script>
+        // ── Shell neutra: nessun servizio esterno, nessuna pubblicità ──
+        // stub telemetria (mantenuto per compatibilità con il bootstrap)
+        var globalStartTime = Date.now();
+        function sendOpenStats() { /* disattivato */ }
+
+        // stub segnalazione errori locale
+        window.Raven = {
+            config: function () { return window.Raven; },
+            install: function () { return window.Raven; },
+            setUser: function () { return window.Raven; },
+            setUserContext: function () { return window.Raven; },
+            setExtraContext: function () { return window.Raven; },
+            context: function (f) { if (typeof f === "function") return f(); return window.Raven; },
+            wrap: function (f) { return f; },
+            uninstall: function () {},
+            captureException: function () {},
+            captureMessage: function () {},
+            captureBreadcrumb: function () {},
+            debug: function () { return window.Raven; },
+            lastEventId: function () { return ""; },
+            showReportDialog: function () {}
+        };
+
+        // stub piattaforma locale: nessun annuncio, nessun banner, profilo ospite
+        window.CrazyGames = {
+            SDK: {
+                user: {
+                    isUserAccountAvailable: function (cb) { if (cb) cb(null, false); },
+                    getUser: function (cb) { if (cb) cb(null, null); },
+                    getUserToken: function (cb) { if (cb) cb(null, ""); }
+                },
+                ad: {
+                    requestAd: function (type, cbs) {
+                        if (cbs && typeof cbs.adFinished === "function") setTimeout(cbs.adFinished, 0);
+                        return { type: type };
+                    }
+                },
+                banner: {
+                    requestBanner: function () {},
+                    requestResponsiveBanner: function () {},
+                    clearBanners: function () {}
+                },
+                game: {
+                    sdkGameLoadingStart: function () {},
+                    sdkGameLoadingStop: function () {},
+                    gameplayStart: function () {},
+                    gameplayStop: function () {},
+                    happytime: function () {},
+                    inviteLink: function (cb) { if (cb) cb(null, ""); }
+                }
+            }
+        };
+
+        function loadMain() {
+            var main = document.createElement('script');
+            main.charset = 'utf-8';
+            main.src = 'main.js';
+            document.body.appendChild(main);
+        }
+
+        function loadBlueBird() {
+            var bluebird = document.createElement('script');
+            bluebird.src = 'bluebird.min.js';
+            document.body.appendChild(bluebird);
+        }
+
+        var isIE = /*@cc_on!@*/ false || !!document.documentMode;
+        var ua = window.navigator.userAgent + "";
+        if (isIE || ua.indexOf("ASUS_") > -1) {
+            loadBlueBird();
+        }
+
+        loadMain();
+    </script>
+
+    <script src="grid9.js" charset="utf-8"></script>
+
+    <!-- contenitore richiesto dal bootstrap, mantenuto vuoto e nascosto -->
+    <div id="banner-container" style="width: 100%; height: 0"></div>
+</body>
+
+</html>
