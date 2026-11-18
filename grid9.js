@@ -2,34 +2,33 @@
  * JiuTianJiuDi — tavola a 9 quadranti per il portale web
  * ------------------------------------------------------
  * Grafica = SOLO ritagli reali dal tabellone Ludo (atlante A57):
- *   grid9/quad.png   = quadrante della casa (HouseColorBox_1), tintato a runtime
- *                      con 9 tinte → 9 quadranti come i 4 originali del ludo;
- *   grid9/box.png    = box bianca interna (box_02) senza i 4 cerchi originali;
- *   grid9/circle.png = cerchio pedina (PawnBaseCircle): GRIGIO = vuoto,
- *                      tintato del colore del quadrante = pedina cerchiata.
+ *   grid9/quad.png          = quadrante della casa (HouseColorBox_1), tintato a runtime
+ *   grid9/box.png           = box bianca interna (box_02) senza i 4 cerchi originali;
+ *   grid9/circle3d_gray.png = slot vuoto (grigio, effetto incassato) — grigio = pedina assente
+ *   grid9/circle3d_c0..8.png= pedine 3D lucide (una per colore), derivate dal cerchio reale
  * Le "caselline" centrali originali (banner/score/rank dentro la box) non
  * vengono disegnate; le caselle del percorso vengono rimosse da Cells.
  *
  * Cosa fa a runtime:
- *   1. dall' Lobby entra da sola nella GameScene esistente (UI/widget ludo);
- *   2. svuota Cells e costruisce la tavola: 9 quadranti (3x3) × 9 cerchi
- *      grigi ciascuno (81 slot) + vassoio in basso con le 9 pedine numerate;
- *   3. DRAG AND DROP come il riferimento: trascini la pedina N su un cerchio
+ *   1. dall' Lobby entra da sola nella GameScene esistente (UI/widget ludo,
+ *      icone in alto RESTATE: indietro, monete, Classic, gemme, ingranaggi);
+ *   2. nasconde il logo Ludo su LoadingScene/Lobby (niente branding al loading);
+ *   3. svuota Cells e costruisce la tavola: 9 quadranti (3x3) × 9 cerchi
+ *      grigi ciascuno (81 slot) + vassoio in basso con le 9 pedine numerate 1-9;
+ *   4. DRAG AND DROP come il riferimento: trascini la pedina N su un cerchio
  *      grigio del quadrante N (stesso colore) → la pedina si incasta sul
  *      cerchio; numero sbagliato o quadrante pieno → torna nel vassoio;
- *   4. una pedina piazzata si può spostare su un altro cerchio libero dello
+ *   5. una pedina piazzata si può spostare su un altro cerchio libero dello
  *      stesso quadrante o rimuovere trascinandola di nuovo nel vassoio;
- *   5. quadrante completato (9/9) → toast + pulsazione della piastrella;
- *   6. window.Grid9API per il futuro layer realtime (Supabase).
+ *   6. quadrante completato (9/9) → toast + pulsazione della piastrella;
+ *   7. interfaccia in INGLESE; window.Grid9API per il futuro layer realtime.
  */
 (function () {
   "use strict";
 
   // ── Palette (9 quadranti, stessa famiglia dei 4 colori ludo) ──
   var QUAD_HEX = ["#C0392B", "#E07B28", "#3AA6A0", "#27AE60", "#8AB52A", "#7D9471", "#B64A8F", "#8B5E3C", "#E884A5"];
-  var QUAD_NAMES = ["Rosso", "Arancio", "Teal", "Verde", "Lime", "Saggio", "Magenta", "Terra", "Rosa"];
-  var GRAY = { r: 204, g: 204, b: 204 };   // cerchio vuoto (come i cerchi originali della box)
-  var GRAY_HI = { r: 232, g: 232, b: 232 }; // cerchio libero evidenziato durante il drag
+  var QUAD_NAMES = ["Red", "Orange", "Teal", "Green", "Lime", "Sage", "Magenta", "Brown", "Pink"];
   var CELLS = 81, QUAD_CELLS = 9;
 
   // geometria dentro GameBoard (626x626)
@@ -45,7 +44,7 @@
     placed: 0,
     paused: false
   };
-  var sprites = { quad: null, box: null, circle: null };
+  var sprites = { quad: null, box: null, circle: null, gray: null, c3d: [null, null, null, null, null, null, null, null, null] };
   var assetsReady = false;
   var boardParent = null, tileNodes = null, circleNodes = null, discNodes = null,
       progressLabel = null, trayNodes = null, trayCountLabels = null;
@@ -87,22 +86,37 @@
     return n;
   }
 
+  // texture 3D della pedina per il quadrante q (fallback: cerchio bianco tintato)
+  function discFrame(q) {
+    return sprites.c3d[q] || sprites.circle;
+  }
+
   // ── Caricamento dei ritagli (SOLO ritagli reali della mappa) ──
   function loadAssets(done) {
     if (assetsReady) { done(); return; }
-    var list = ["grid9/quad.png", "grid9/box.png", "grid9/circle.png"];
+    var list = ["grid9/quad.png", "grid9/box.png", "grid9/circle.png",
+                "grid9/circle3d_gray.png",
+                "grid9/circle3d_c0.png", "grid9/circle3d_c1.png", "grid9/circle3d_c2.png",
+                "grid9/circle3d_c3.png", "grid9/circle3d_c4.png", "grid9/circle3d_c5.png",
+                "grid9/circle3d_c6.png", "grid9/circle3d_c7.png", "grid9/circle3d_c8.png"];
     var left = list.length;
     list.forEach(function (url) {
       cc.loader.load(url, function (err, tex) {
         if (!err && tex) {
           var sf = new cc.SpriteFrame(tex);
-          if (url.indexOf("quad") > -1) sprites.quad = sf;
+          if (url.indexOf("circle3d_gray") > -1) sprites.gray = sf;
+          else if (url.indexOf("circle3d_c") > -1) {
+            var q = parseInt(url.slice(-5, -4), 10);
+            if (!isNaN(q)) sprites.c3d[q] = sf;
+          }
+          else if (url.indexOf("quad") > -1) sprites.quad = sf;
           else if (url.indexOf("box") > -1) sprites.box = sf;
           else sprites.circle = sf;
         } else {
-          console.error("[Grid9] asset mancante:", url, err);
+          console.warn("[Grid9] asset non caricato (ok se è un 3D opzionale):", url);
         }
         if (--left === 0) {
+          // i 3D sono graditi ma opzionali: senza, si torna ai cerchi tintati
           assetsReady = !!(sprites.quad && sprites.box && sprites.circle);
           done();
         }
@@ -147,22 +161,21 @@
       box.name = "box_" + q;
       box.parent = boardParent;
 
-      // 9 cerchi grigi (vuoti = nessuna pedina piazzata) + nodo pedina (nascosto)
+      // 9 slot grigi (vuoto = nessuna pedina piazzata) + nodo pedina 3D (nascosto)
       for (var n = 0; n < QUAD_CELLS; n++) {
         var i = q * QUAD_CELLS + n;
         var p = slotPos(q, n);
 
-        var cnode = makeSprite(sprites.circle, CIRC, CIRC, p.x, p.y, -1);
-        cnode.color = cc.color(GRAY.r, GRAY.g, GRAY.b);
+        var cnode = makeSprite(sprites.gray || sprites.circle, CIRC, CIRC, p.x, p.y, -1);
+        cnode.color = cc.color(255, 255, 255);
         cnode.name = "slot_" + i;
         cnode.parent = boardParent;
         circleNodes.push(cnode);
 
-        var dnode = makeSprite(sprites.circle, CIRC, CIRC, p.x, p.y, 6);
-        dnode.color = hexToCc(QUAD_HEX[q]);
+        var dnode = makeSprite(discFrame(q), CIRC, CIRC, p.x, p.y, 6);
         dnode.active = false;
         dnode.name = "disc_" + i;
-        makeNumberLabel(dnode, String(q + 1), 16);
+        makeNumberLabel(dnode, String(q + 1), 17);
         (function (idx, num) {
           dnode.on(cc.Node.EventType.TOUCH_START, function (ev) { startDrag(false, num, idx, ev); }, dnode);
           dnode.on(cc.Node.EventType.TOUCH_MOVE, function (ev) { moveDrag(ev); }, dnode);
@@ -203,10 +216,9 @@
 
     for (var q = 0; q < 9; q++) {
       var x = -TRAY_STEP * 4 + q * TRAY_STEP;
-      var node = makeSprite(sprites.circle, TRAY_DISC, TRAY_DISC, x, TRAY_Y, 0);
-      node.color = hexToCc(QUAD_HEX[q]);
+      var node = makeSprite(discFrame(q), TRAY_DISC, TRAY_DISC, x, TRAY_Y, 0);
       node.name = "tray_" + q;
-      makeNumberLabel(node, String(q + 1), 22);
+      makeNumberLabel(node, String(q + 1), 24);
       var cnt = new cc.Node("cnt");
       var cl = cnt.addComponent(cc.Label);
       cl.string = "×9";
@@ -235,12 +247,11 @@
     if (state.paused || !boardParent) return;
     if (!fromTray && state.slots[fromSlot] !== true) return;
     var quadFull = countRemaining(num) <= 0 && fromTray;
-    if (quadFull) { toast("Il quadrante " + QUAD_NAMES[num] + " è completo!"); return; }
+    if (quadFull) { toast("The " + QUAD_NAMES[num] + " quadrant is full!"); return; }
 
     var canvas = cc.find("Canvas");
-    var ghost = makeSprite(sprites.circle, CIRC, CIRC, 0, 0, 1000);
-    ghost.color = hexToCc(QUAD_HEX[num]);
-    makeNumberLabel(ghost, String(num + 1), 16);
+    var ghost = makeSprite(discFrame(num), CIRC, CIRC, 0, 0, 1000);
+    makeNumberLabel(ghost, String(num + 1), 17);
     ghost.setScale(1.25);
     var p = canvas.convertToNodeSpace(ev.getLocation());
     ghost.setPosition(p);
@@ -300,7 +311,7 @@
     } else if (fromSlot !== null) {
       snapBack(fromSlot); // pedina già piazzata: torna al suo slot
     } else {
-      toast("La pedina " + (num + 1) + " va nel quadrante " + QUAD_NAMES[num]);
+      toast("Pawn " + (num + 1) + " goes on the " + QUAD_NAMES[num] + " quadrant");
     }
     refresh();
   }
@@ -320,7 +331,7 @@
     state.placed++;
     if (state.quadFilled[q] === QUAD_CELLS && !state.quadsDone[q]) {
       state.quadsDone[q] = true;
-      toast("Quadrante " + QUAD_NAMES[q] + " completato! (" + doneQuads() + "/9)");
+      toast("Quadrant " + QUAD_NAMES[q] + " complete! (" + doneQuads() + "/9)");
       var tile = tileNodes[q];
       if (tile) {
         tile.stopAllActions();
@@ -366,10 +377,8 @@
       var node = circleNodes[i];
       if (!node) continue;
       if (on && !state.slots[i]) {
-        node.color = cc.color(GRAY_HI.r, GRAY_HI.g, GRAY_HI.b);
-        node.setScale(1.2);
+        node.setScale(1.22);          // lo slot libero si ingrandisce (texture già grigia)
       } else {
-        node.color = cc.color(GRAY.r, GRAY.g, GRAY.b);
         node.setScale(1);
       }
     }
@@ -388,7 +397,7 @@
     }
     if (progressLabel) {
       progressLabel.getComponent(cc.Label).string =
-        "Quadranti " + doneQuads() + "/9   ·   Pedine " + state.placed + "/81";
+        "Quadrants " + doneQuads() + "/9   ·   Pawns " + state.placed + "/81";
     }
   }
 
@@ -403,17 +412,19 @@
     l.lineHeight = 26;
     n.color = cc.color(255, 255, 255);
     try { l.enableOutline = true; l.outlineColor = cc.color(40, 30, 20); l.outlineWidth = 2; } catch (e) {}
-    n.setPosition(0, 428);
+    n.setPosition(0, 385);
     n.zIndex = 999;
     n.parent = canvas;
     n.runAction(cc.sequence(cc.delayTime(1.4), cc.fadeOut(0.8), cc.removeSelf()));
   }
 
   // ── Nodi del gioco originale da tenere fuori ──
+  // NB: TopGamehud e ProfileContainer RESTANO visibili: sono le icone in alto
+  // (indietro, monete, Classic, gemme, ingranaggi) volute dall'utente.
   // NB: RushModeBackground resta visibile: è lo sfondo blu dell'UI ludo
   var JUNK = ["RushGameBoard", "WaitingPanel", "FftueNode", "AnimNodes",
               "DebugLayer", "powerupNodeV2", "SafeLocations", "TileHighlightLocation", "timer",
-              "TopGamehud", "ProfileContainer", "PawnContainer", "MyPlayerNode",
+              "PawnContainer", "MyPlayerNode",
               "SwordAnimPlaceholder", "SwordAnimationMetaNode", "PowerupPlayerNode", "Popups",
               "loadingBg", "ConfettiSpine1", "ConfettiSpine2", "ConfettiSpine3", "ConfettiSpine4",
               "winPopups", "chatprefab", "chatprefab2", "chatprefab3", "chatprefab4",
@@ -432,6 +443,19 @@
     });
     var touchCatcher = cc.find("Canvas/touchNode");
     if (touchCatcher && touchCatcher.active) touchCatcher.active = false;
+    // ProfileContainer resta visibile ma i suoi figli di gioco (power-up,
+    // bolla chat e profili giocatore) vanno spenti: finirebbero dietro/al
+    // posto del vassoio delle pedine. Le icone in alto stanno in TopGamehud.
+    var prof = cc.find("Canvas/Content/BoardContent/ProfileContainer");
+    if (prof) {
+      ["PowerupPlayerNode", "ChatPrefabs", "Profiles", "PlayerNames", "Dices"].forEach(function (nm) {
+        var sub = prof.getChildByName(nm);
+        if (sub && sub.active) {
+          sub.active = false;
+          sub.setPosition(-3000, -3000);
+        }
+      });
+    }
     var gameBoard = cc.find("Canvas/Content/BoardContent/GameBoard");
     if (gameBoard) {
       // case colori e frecce spawnate a runtime
@@ -452,6 +476,49 @@
     }
   }
 
+  // ── Branding: niente logo Ludo durante il loading / lobby ──
+  // Nasconde il logo ludo sia per NOME nodo ("ludoLogo" nella LoadingScene)
+  // sia per nome sprite frame ("ludo_logo"), SOLO su LoadingScene/Lobby:
+  // nella GameScene i nodi di gioco non vengono toccati.
+  function normName(s) {
+    return (s || "").toLowerCase().replace(/[\s_\-]/g, "");
+  }
+  // nodi del loading da spegnere: logo ludo, etichetta segnaposto e tip ludo
+  var BRAND_NODES = ["ludologo", "fontlabel", "loadingtext"];
+  function hideBranding() {
+    var scene = cc.director.getScene();
+    if (!scene) return;
+    var sn = scene.name || "";
+    if (sn !== "LoadingScene" && sn !== "Lobby") return;
+    var stack = [scene];
+    var seen = 0;
+    while (stack.length && seen < 600) {
+      var n = stack.pop();
+      if (!n || n.__g9_brand_hidden) continue;
+      seen++;
+      var nn = normName(n.name);
+      if (BRAND_NODES.indexOf(nn) > -1) {
+        n.active = false;
+        n.__g9_brand_hidden = true;
+        continue;
+      }
+      var comps = n.components || [];
+      for (var i = 0; i < comps.length; i++) {
+        var sp = comps[i];
+        if (sp && sp.spriteFrame) {
+          var nm = "";
+          try { nm = sp.spriteFrame.getName ? sp.spriteFrame.getName() : (sp.spriteFrame._name || ""); } catch (e) { nm = ""; }
+          if (normName(nm).indexOf("ludologo") > -1) {
+            n.active = false;
+            n.__g9_brand_hidden = true;
+          }
+        }
+      }
+      var ch = n.children || [];
+      for (var c = 0; c < ch.length; c++) stack.push(ch[c]);
+    }
+  }
+
   // ── Entrata nella modalità tavola dentro la GameScene esistente ──
   function enterGrid9() {
     if (entered) return;
@@ -464,7 +531,7 @@
     entered = true;
     window.__G9_READY__ = true;
     refresh();
-    toast("Trascina le pedine sui cerchi grigi dello stesso colore!");
+    toast("Drag the pawns onto the gray circles of the same color!");
   }
 
   // ── Lobby: ingresso diretto nella tavola ──
@@ -475,7 +542,7 @@
       try {
         if (!entered) {
           cc.director.loadScene("GameScene");
-          toast("Benvenuto in JiuTianJiuDi");
+          toast("Welcome to JiuTianJiuDi!");
         }
       } catch (e) {
         console.error("[Grid9]", e);
@@ -486,6 +553,11 @@
   }
 
   // ── Punti di aggancio ──
+  // branding via durante il loading: controllo veloce dedicato
+  setInterval(function () {
+    try { if (cc.director && cc.director.getScene()) hideBranding(); } catch (e) {}
+  }, 150);
+
   setInterval(function () {
     try {
       if (!cc.director) return;
