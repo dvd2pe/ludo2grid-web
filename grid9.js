@@ -14,15 +14,15 @@
  *      icone in alto RESTATE: indietro, monete, Classic, gemme, ingranaggi);
  *   2. nasconde il logo Ludo su LoadingScene/Lobby (niente branding al loading);
  *   3. svuota Cells e costruisce la tavola: 9 quadranti (3x3) × 10 cerchi
- *      grigi NUMERATI 1-10 a piramide 3-4-3 (90 slot) + vassoio in basso
- *      con le 9 pedine colorate (×10 l'una); la pedina piazzata prende il
- *      numero del cerchio su cui si incasta;
+ *      grigi NUMERATI 1-10 in DUE RIGHE DA 5 (ten-frame, 90 slot) + vassoio
+ *      in basso con le 9 pedine colorate (×10 l'una); la pedina piazzata
+ *      prende il numero del cerchio su cui si incasta;
  *   4. DRAG AND DROP come il riferimento: trascini la pedina N su un cerchio
  *      grigio del quadrante N (stesso colore) → la pedina si incasta sul
  *      cerchio; numero sbagliato o quadrante pieno → torna nel vassoio;
  *   5. una pedina piazzata si può spostare su un altro cerchio libero dello
  *      stesso quadrante o rimuovere trascinandola di nuovo nel vassoio;
- *   6. quadrante completato (9/9) → toast + pulsazione della piastrella;
+ *   6. quadrante completato (10/10) → toast + pulsazione della piastrella;
  *   7. interfaccia in INGLESE; window.Grid9API per il futuro layer realtime.
  */
 (function () {
@@ -35,7 +35,7 @@
 
   // geometria dentro GameBoard (626x626)
   var TILE = 200, TILE_STEP = 204, TILE_ORIGIN = -204; // 3 tile da 200 + 2 gap da 4 = 608
-  var CIRC = 30, CIRC_STEP = 34;                        // cerchi 3-4-3 dentro la box bianca
+  var CIRC = 26, CIRC_STEP = 28, ROW_STEP = 30;         // cerchi in 2 righe da 5 (ten-frame) nella box bianca
   var TRAY_DISC = 46, TRAY_STEP = 52, TRAY_Y = -392;    // vassoio in basso al canvas
 
   // ── Stato ──
@@ -127,21 +127,19 @@
   }
 
   // posizione dello slot n (0..9) del quadrante q in coordinate boardParent.
-  // 10 cerchi a piramide 3-4-3 (come i birilli), numerati 1..10 per ogni colore
-  var PYRAMID_ROWS = [3, 4, 3];
+  // 10 cerchi in DUE RIGHE DA 5 (ten-frame, 1-5 sopra / 6-10 sotto), numerati 1..10 per ogni colore
   function slotPos(q, n) {
     var qRow = Math.floor(q / 3), qCol = q % 3;
     var tx = TILE_ORIGIN + qCol * TILE_STEP;
     var ty = TILE_ORIGIN + (2 - qRow) * TILE_STEP;
-    var row = 0, idx = n;
-    while (idx >= PYRAMID_ROWS[row]) { idx -= PYRAMID_ROWS[row]; row++; }
-    var count = PYRAMID_ROWS[row];
-    var x = tx + (idx - (count - 1) / 2) * CIRC_STEP;
-    var y = ty + (1 - row) * CIRC_STEP;
-    return { x: x, y: y };
+    var row = n < 5 ? 0 : 1, col = n % 5;
+    return {
+      x: tx + (col - 2) * CIRC_STEP,
+      y: ty + (row === 0 ? ROW_STEP / 2 : -ROW_STEP / 2)
+    };
   }
 
-  // ── Costruzione della tavola 9 quadranti × 9 cerchi grigi ──
+  // ── Costruzione della tavola 9 quadranti × 10 cerchi grigi ──
   function buildGrid9() {
     boardParent = cc.find("Canvas/Content/BoardContent/GameBoard/Cells");
     if (!boardParent) { console.error("[Grid9] Cells non trovato"); return false; }
@@ -174,14 +172,14 @@
         var cnode = makeSprite(sprites.gray || sprites.circle, CIRC, CIRC, p.x, p.y, -1);
         cnode.color = cc.color(255, 255, 255);
         cnode.name = "slot_" + i;
-        makeNumberLabel(cnode, String(n + 1), 13, [90, 90, 90]); // numero del cerchio, testo scuro
+        makeNumberLabel(cnode, String(n + 1), 11, [90, 90, 90]); // numero del cerchio, testo scuro
         cnode.parent = boardParent;
         circleNodes.push(cnode);
 
         var dnode = makeSprite(discFrame(q), CIRC, CIRC, p.x, p.y, 6);
         dnode.active = false;
         dnode.name = "disc_" + i;
-        makeNumberLabel(dnode, String(n + 1), 16); // la pedina prende il numero del cerchio
+        makeNumberLabel(dnode, String(n + 1), 13); // la pedina prende il numero del cerchio
         (function (idx, num) {
           dnode.on(cc.Node.EventType.TOUCH_START, function (ev) { startDrag(false, num, idx, ev); }, dnode);
           dnode.on(cc.Node.EventType.TOUCH_MOVE, function (ev) { moveDrag(ev); }, dnode);
@@ -257,7 +255,7 @@
 
     var canvas = cc.find("Canvas");
     var ghost = makeSprite(discFrame(num), CIRC, CIRC, 0, 0, 1000);
-    makeNumberLabel(ghost, String(num + 1), 17);
+    makeNumberLabel(ghost, String(num + 1), 14);
     ghost.setScale(1.25);
     var p = canvas.convertToNodeSpace(ev.getLocation());
     ghost.setPosition(p);
