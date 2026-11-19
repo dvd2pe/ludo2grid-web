@@ -13,8 +13,10 @@
  *   1. dall' Lobby entra da sola nella GameScene esistente (UI/widget ludo,
  *      icone in alto RESTATE: indietro, monete, Classic, gemme, ingranaggi);
  *   2. nasconde il logo Ludo su LoadingScene/Lobby (niente branding al loading);
- *   3. svuota Cells e costruisce la tavola: 9 quadranti (3x3) × 9 cerchi
- *      grigi ciascuno (81 slot) + vassoio in basso con le 9 pedine numerate 1-9;
+ *   3. svuota Cells e costruisce la tavola: 9 quadranti (3x3) × 10 cerchi
+ *      grigi NUMERATI 1-10 a piramide 3-4-3 (90 slot) + vassoio in basso
+ *      con le 9 pedine colorate (×10 l'una); la pedina piazzata prende il
+ *      numero del cerchio su cui si incasta;
  *   4. DRAG AND DROP come il riferimento: trascini la pedina N su un cerchio
  *      grigio del quadrante N (stesso colore) → la pedina si incasta sul
  *      cerchio; numero sbagliato o quadrante pieno → torna nel vassoio;
@@ -29,11 +31,11 @@
   // ── Palette (9 quadranti, stessa famiglia dei 4 colori ludo) ──
   var QUAD_HEX = ["#C0392B", "#E07B28", "#3AA6A0", "#27AE60", "#8AB52A", "#7D9471", "#B64A8F", "#8B5E3C", "#E884A5"];
   var QUAD_NAMES = ["Red", "Orange", "Teal", "Green", "Lime", "Sage", "Magenta", "Brown", "Pink"];
-  var CELLS = 81, QUAD_CELLS = 9;
+  var CELLS = 90, QUAD_CELLS = 10;
 
   // geometria dentro GameBoard (626x626)
   var TILE = 200, TILE_STEP = 204, TILE_ORIGIN = -204; // 3 tile da 200 + 2 gap da 4 = 608
-  var CIRC = 32, CIRC_STEP = 36;                        // cerchi 3x3 dentro la box bianca
+  var CIRC = 30, CIRC_STEP = 34;                        // cerchi 3-4-3 dentro la box bianca
   var TRAY_DISC = 46, TRAY_STEP = 52, TRAY_Y = -392;    // vassoio in basso al canvas
 
   // ── Stato ──
@@ -67,7 +69,7 @@
     return node;
   }
 
-  function makeNumberLabel(parent, str, size) {
+  function makeNumberLabel(parent, str, size, rgb) {
     var n = new cc.Node("num");
     var l = n.addComponent(cc.Label);
     l.string = str;
@@ -80,7 +82,7 @@
       l.outlineColor = cc.color(40, 30, 20);
       l.outlineWidth = 2;
     } catch (e) { /* outline non disponibile */ }
-    n.color = cc.color(255, 255, 255);
+    n.color = rgb ? cc.color(rgb[0], rgb[1], rgb[2]) : cc.color(255, 255, 255);
     n.zIndex = 2;
     n.parent = parent;
     return n;
@@ -124,16 +126,19 @@
     });
   }
 
-  // posizione dello slot n (0..8) del quadrante q in coordinate boardParent
+  // posizione dello slot n (0..9) del quadrante q in coordinate boardParent.
+  // 10 cerchi a piramide 3-4-3 (come i birilli), numerati 1..10 per ogni colore
+  var PYRAMID_ROWS = [3, 4, 3];
   function slotPos(q, n) {
     var qRow = Math.floor(q / 3), qCol = q % 3;
     var tx = TILE_ORIGIN + qCol * TILE_STEP;
     var ty = TILE_ORIGIN + (2 - qRow) * TILE_STEP;
-    var innerRow = Math.floor(n / 3), innerCol = n % 3;
-    return {
-      x: tx + (innerCol - 1) * CIRC_STEP,
-      y: ty + (1 - innerRow) * CIRC_STEP
-    };
+    var row = 0, idx = n;
+    while (idx >= PYRAMID_ROWS[row]) { idx -= PYRAMID_ROWS[row]; row++; }
+    var count = PYRAMID_ROWS[row];
+    var x = tx + (idx - (count - 1) / 2) * CIRC_STEP;
+    var y = ty + (1 - row) * CIRC_STEP;
+    return { x: x, y: y };
   }
 
   // ── Costruzione della tavola 9 quadranti × 9 cerchi grigi ──
@@ -161,7 +166,7 @@
       box.name = "box_" + q;
       box.parent = boardParent;
 
-      // 9 slot grigi (vuoto = nessuna pedina piazzata) + nodo pedina 3D (nascosto)
+      // 10 slot grigi NUMERATI 1..10 (vuoto = nessuna pedina piazzata) + nodo pedina 3D (nascosto)
       for (var n = 0; n < QUAD_CELLS; n++) {
         var i = q * QUAD_CELLS + n;
         var p = slotPos(q, n);
@@ -169,13 +174,14 @@
         var cnode = makeSprite(sprites.gray || sprites.circle, CIRC, CIRC, p.x, p.y, -1);
         cnode.color = cc.color(255, 255, 255);
         cnode.name = "slot_" + i;
+        makeNumberLabel(cnode, String(n + 1), 13, [90, 90, 90]); // numero del cerchio, testo scuro
         cnode.parent = boardParent;
         circleNodes.push(cnode);
 
         var dnode = makeSprite(discFrame(q), CIRC, CIRC, p.x, p.y, 6);
         dnode.active = false;
         dnode.name = "disc_" + i;
-        makeNumberLabel(dnode, String(q + 1), 17);
+        makeNumberLabel(dnode, String(n + 1), 16); // la pedina prende il numero del cerchio
         (function (idx, num) {
           dnode.on(cc.Node.EventType.TOUCH_START, function (ev) { startDrag(false, num, idx, ev); }, dnode);
           dnode.on(cc.Node.EventType.TOUCH_MOVE, function (ev) { moveDrag(ev); }, dnode);
@@ -221,7 +227,7 @@
       makeNumberLabel(node, String(q + 1), 24);
       var cnt = new cc.Node("cnt");
       var cl = cnt.addComponent(cc.Label);
-      cl.string = "×9";
+      cl.string = "×10";
       cl.fontSize = 14;
       cl.lineHeight = 16;
       cnt.color = cc.color(255, 255, 255);
@@ -397,7 +403,7 @@
     }
     if (progressLabel) {
       progressLabel.getComponent(cc.Label).string =
-        "Quadrants " + doneQuads() + "/9   ·   Pawns " + state.placed + "/81";
+        "Quadrants " + doneQuads() + "/9   ·   Pawns " + state.placed + "/90";
     }
   }
 
