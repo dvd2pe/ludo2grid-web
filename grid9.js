@@ -159,8 +159,8 @@
       tile.parent = boardParent;
       tileNodes.push(tile);
 
-      // box bianca interna (già senza i 4 cerchi originali)
-      var box = makeSprite(sprites.box, 140, 138, tx, ty, -2);
+      // box bianca interna (allargata per ospitare la riga da 5 cerchi)
+      var box = makeSprite(sprites.box, 152, 150, tx, ty, -2);
       box.name = "box_" + q;
       box.parent = boardParent;
 
